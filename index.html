@@ -23,7 +23,7 @@
 
 <h1>Anonymous Messages Online</h1>
 
-<button id="loginBtn">Login with Facebook</button>
+<button id="loginBtn">Login with Email</button>
 <button id="logoutBtn" style="display:none;">Logout</button>
 
 <div id="usernameDiv" style="display:none;">
@@ -50,10 +50,10 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-app.js";
 import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-firestore.js";
-import { getAuth, FacebookAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-auth.js";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-auth.js";
 import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-analytics.js";
 
-// Firebase configuration
+// Firebase config
 const firebaseConfig = {
   apiKey: "AIzaSyCtVgNIqBQi_0T0yQguzYAPpXo3tTqpKGE",
   authDomain: "anonymouschatapp-61434.firebaseapp.com",
@@ -89,20 +89,32 @@ const messageInput = document.getElementById('messageInput');
 const stickerSelect = document.getElementById('stickerSelect');
 const sendBtn = document.getElementById('sendBtn');
 
+// Email login prompt
 loginBtn.onclick = async () => {
-  const provider = new FacebookAuthProvider();
+  const email = prompt("Enter your email:");
+  const password = prompt("Enter your password:");
+
   try {
-    const result = await signInWithPopup(auth, provider);
-    currentUser = result.user;
-    loginBtn.style.display = 'none';
-    logoutBtn.style.display = 'inline-block';
-    usernameDiv.style.display = 'block';
-    messageInput.style.display = 'block';
-    stickerSelect.style.display = 'block';
-    sendBtn.style.display = 'block';
+    // Try to sign in
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    currentUser = userCredential.user;
   } catch (err) {
-    alert("Login failed: " + err.message);
+    if (err.code === "auth/user-not-found") {
+      // If user not found, create account
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      currentUser = userCredential.user;
+    } else {
+      alert("Login failed: " + err.message);
+      return;
+    }
   }
+
+  loginBtn.style.display = 'none';
+  logoutBtn.style.display = 'inline-block';
+  usernameDiv.style.display = 'block';
+  messageInput.style.display = 'block';
+  stickerSelect.style.display = 'block';
+  sendBtn.style.display = 'block';
 };
 
 logoutBtn.onclick = async () => {
