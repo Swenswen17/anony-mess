@@ -89,20 +89,35 @@ const messageInput = document.getElementById('messageInput');
 const stickerSelect = document.getElementById('stickerSelect');
 const sendBtn = document.getElementById('sendBtn');
 
-// Email login prompt
+// Login with Email
 loginBtn.onclick = async () => {
   const email = prompt("Enter your email:");
   const password = prompt("Enter your password:");
 
+  if (!email || !password) {
+    alert("Email and password cannot be empty!");
+    return;
+  }
+
   try {
-    // Try to sign in
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     currentUser = userCredential.user;
   } catch (err) {
     if (err.code === "auth/user-not-found") {
-      // If user not found, create account
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      currentUser = userCredential.user;
+      try {
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        currentUser = userCredential.user;
+      } catch (createErr) {
+        if (createErr.code === "auth/operation-not-allowed") {
+          alert("Email/Password login is not enabled in Firebase Authentication. Go to Firebase Console → Authentication → Sign-in method → Enable Email/Password.");
+        } else {
+          alert("Account creation failed: " + createErr.message);
+        }
+        return;
+      }
+    } else if (err.code === "auth/operation-not-allowed") {
+      alert("Email/Password login is not enabled in Firebase Authentication. Go to Firebase Console → Authentication → Sign-in method → Enable Email/Password.");
+      return;
     } else {
       alert("Login failed: " + err.message);
       return;
@@ -117,6 +132,7 @@ loginBtn.onclick = async () => {
   sendBtn.style.display = 'block';
 };
 
+// Logout
 logoutBtn.onclick = async () => {
   await signOut(auth);
   currentUser = null;
@@ -130,6 +146,7 @@ logoutBtn.onclick = async () => {
   messagesDiv.innerHTML = '';
 };
 
+// Username input
 usernameInput.onchange = () => {
   username = usernameInput.value.trim() || "Anonymous";
 };
@@ -172,7 +189,6 @@ onSnapshot(messagesQuery, snapshot => {
     // Load replies
     const repliesQuery = query(collection(db, "messages", docSnap.id, "replies"), orderBy("timestamp"));
     onSnapshot(repliesQuery, rSnap => {
-      // Remove old replies first
       replyDiv.querySelectorAll('.reply-item')?.forEach(e => e.remove());
       rSnap.forEach(rDoc => {
         const rData = rDoc.data();
