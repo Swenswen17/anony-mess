@@ -17,7 +17,6 @@
   .message, .reply { margin: 5px 0; display: flex; align-items: flex-start; gap: 5px;}
   .reply { margin-left: 20px; color: #555; font-size: 0.9em; flex-direction: column;}
   .reply-input { width: 90%; padding: 5px; margin-top: 3px; border-radius: 4px; border: 1px solid #ccc; }
-  .reply-btn { font-size: 0.8em; cursor: pointer; color: #ff4da6; background: none; border: none; margin-left: 5px; }
   input, button, select { padding: 8px; margin: 5px 0; border-radius: 5px; border: 1px solid #ccc; width: 100%; }
   button { background: #ff4da6; color: white; border: none; cursor: pointer; }
   button:hover { background: #e03e90; }
@@ -108,7 +107,12 @@ const signinTabBtn = document.getElementById('signinTabBtn');
 
 // Helper: sanitize username for Firebase
 function sanitizeUsername(username) {
-  return username.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+  return username.replace(/[^a-z0-9]/gi, '').toLowerCase();
+}
+
+// Helper: validate username
+function isValidUsername(username) {
+  return sanitizeUsername(username).length >= 3;
 }
 
 // Helper: generate internal email
@@ -135,10 +139,11 @@ signinTabBtn.onclick = () => {
 
 // Sign Up
 signupBtn.onclick = async () => {
-  const username = usernameInput.value.trim();
+  let username = usernameInput.value.trim();
   const email = emailInput.value.trim();
   const password = passwordInput.value.trim();
   if (!username || !password) return alert("Username and password are required!");
+  if (!isValidUsername(username)) return alert("Username must be at least 3 letters/numbers (no spaces/special chars)");
 
   // Check username availability
   const q = query(collection(db, "users"), where("username", "==", username));
