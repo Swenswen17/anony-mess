@@ -11,23 +11,25 @@
   .message, .reply { margin: 5px 0; display: flex; align-items: flex-start; gap: 5px;}
   .reply { margin-left: 20px; color: #555; font-size: 0.9em; flex-direction: column;}
   .reply-input { width: 90%; padding: 5px; margin-top: 3px; border-radius: 4px; border: 1px solid #ccc; }
-  .reply-btn { font-size: 0.8em; cursor: pointer; color: #ff4da6; background: none; border: none; margin-left: 5px; }
   input, button, select { padding: 8px; margin: 5px 0; border-radius: 5px; border: 1px solid #ccc; width: 100%; }
   button { background: #ff4da6; color: white; border: none; cursor: pointer; }
   button:hover { background: #e03e90; }
-  #loginBtn { background: #1877f2; color: white; margin-bottom: 10px; }
-  #logoutBtn { background: #555; color: white; margin-bottom: 10px; }
+  #authDiv { width: 100%; max-width: 400px; margin-bottom: 20px; }
+  #loginBtn, #signupBtn, #logoutBtn { width: 100%; margin: 5px 0; padding: 10px; }
+  #logoutBtn { background: #555; }
 </style>
 </head>
 <body>
 
 <h1>Anonymous Messages Online</h1>
 
-<button id="loginBtn">Login with Email</button>
-<button id="logoutBtn" style="display:none;">Logout</button>
-
-<div id="usernameDiv" style="display:none;">
-  <input type="text" id="usernameInput" placeholder="Enter your anonymous username">
+<div id="authDiv">
+  <input type="text" id="usernameInput" placeholder="Username">
+  <input type="text" id="emailInput" placeholder="Email or Phone (optional)">
+  <input type="password" id="passwordInput" placeholder="Password">
+  <button id="signupBtn">Sign Up</button>
+  <button id="loginBtn">Sign In</button>
+  <button id="logoutBtn" style="display:none;">Logout</button>
 </div>
 
 <div id="messages"></div>
@@ -49,7 +51,7 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-app.js";
-import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, setDoc, getDocs, where } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-firestore.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-auth.js";
 import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-analytics.js";
 
@@ -78,78 +80,108 @@ const musicTracks = [
 ];
 
 let currentUser = null;
-let username = "";
+let currentUsername = "";
 
+// Elements
+const usernameInput = document.getElementById('usernameInput');
+const emailInput = document.getElementById('emailInput');
+const passwordInput = document.getElementById('passwordInput');
+const signupBtn = document.getElementById('signupBtn');
 const loginBtn = document.getElementById('loginBtn');
 const logoutBtn = document.getElementById('logoutBtn');
-const usernameDiv = document.getElementById('usernameDiv');
-const usernameInput = document.getElementById('usernameInput');
-const messagesDiv = document.getElementById('messages');
 const messageInput = document.getElementById('messageInput');
 const stickerSelect = document.getElementById('stickerSelect');
 const sendBtn = document.getElementById('sendBtn');
+const messagesDiv = document.getElementById('messages');
 
-// Login with Email
-loginBtn.onclick = async () => {
-  const email = prompt("Enter your email:");
-  const password = prompt("Enter your password:");
+// Helper: create internal email if none provided
+function getInternalEmail(username, email) {
+  if (email) return email;
+  return username + "@anonymouschatapp.com";
+}
 
-  if (!email || !password) {
-    alert("Email and password cannot be empty!");
-    return;
-  }
+// Sign Up
+signupBtn.onclick = async () => {
+  const username = usernameInput.value.trim();
+  const email = emailInput.value.trim();
+  const password = passwordInput.value.trim();
+
+  if (!username || !password) return alert("Username and password are required!");
+
+  const internalEmail = getInternalEmail(username, email);
 
   try {
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    const userCredential = await createUserWithEmailAndPassword(auth, internalEmail, password);
     currentUser = userCredential.user;
-  } catch (err) {
-    if (err.code === "auth/user-not-found") {
-      try {
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        currentUser = userCredential.user;
-      } catch (createErr) {
-        if (createErr.code === "auth/operation-not-allowed") {
-          alert("Email/Password login is not enabled in Firebase Authentication. Go to Firebase Console → Authentication → Sign-in method → Enable Email/Password.");
-        } else {
-          alert("Account creation failed: " + createErr.message);
-        }
-        return;
-      }
-    } else if (err.code === "auth/operation-not-allowed") {
-      alert("Email/Password login is not enabled in Firebase Authentication. Go to Firebase Console → Authentication → Sign-in method → Enable Email/Password.");
-      return;
-    } else {
-      alert("Login failed: " + err.message);
-      return;
-    }
-  }
+    currentUsername = username;
 
-  loginBtn.style.display = 'none';
-  logoutBtn.style.display = 'inline-block';
-  usernameDiv.style.display = 'block';
-  messageInput.style.display = 'block';
-  stickerSelect.style.display = 'block';
-  sendBtn.style.display = 'block';
+    // Save username in Firestore
+    await setDoc(doc(db, "users", currentUser.uid), {
+      username: username,
+      email: email || "",
+      uid: currentUser.uid
+    });
+
+    alert("Account created! Logged in as " + username);
+    showChatUI();
+  } catch (err) {
+    alert("Sign up failed: " + err.message);
+  }
+};
+
+// Sign In
+loginBtn.onclick = async () => {
+  const username = usernameInput.value.trim();
+  const password = passwordInput.value.trim();
+  if (!username || !password) return alert("Username and password are required!");
+
+  // Lookup username in Firestore
+  const q = query(collection(db, "users"), where("username", "==", username));
+  const snapshot = await getDocs(q);
+
+  if (snapshot.empty) return alert("Username not found!");
+
+  const userData = snapshot.docs[0].data();
+  const internalEmail = getInternalEmail(username, userData.email);
+
+  try {
+    const userCredential = await signInWithEmailAndPassword(auth, internalEmail, password);
+    currentUser = userCredential.user;
+    currentUsername = username;
+    alert("Logged in as " + username);
+    showChatUI();
+  } catch (err) {
+    alert("Sign in failed: " + err.message);
+  }
 };
 
 // Logout
 logoutBtn.onclick = async () => {
   await signOut(auth);
   currentUser = null;
-  username = "";
+  currentUsername = "";
+  hideChatUI();
+};
+
+// Show/Hide chat UI
+function showChatUI() {
+  signupBtn.style.display = 'none';
+  loginBtn.style.display = 'none';
+  logoutBtn.style.display = 'inline-block';
+  messageInput.style.display = 'block';
+  stickerSelect.style.display = 'block';
+  sendBtn.style.display = 'block';
+}
+
+function hideChatUI() {
+  signupBtn.style.display = 'inline-block';
   loginBtn.style.display = 'inline-block';
   logoutBtn.style.display = 'none';
-  usernameDiv.style.display = 'none';
   messageInput.style.display = 'none';
   stickerSelect.style.display = 'none';
   sendBtn.style.display = 'none';
   messagesDiv.innerHTML = '';
-};
-
-// Username input
-usernameInput.onchange = () => {
-  username = usernameInput.value.trim() || "Anonymous";
-};
+}
 
 // Load messages
 const messagesQuery = query(collection(db, "messages"), orderBy("timestamp"));
@@ -161,7 +193,6 @@ onSnapshot(messagesQuery, snapshot => {
     msgDiv.className = 'message';
     msgDiv.textContent = `${data.sticker} ${data.username || 'Anonymous'}: ${data.text}`;
 
-    // Reply input
     const replyDiv = document.createElement('div');
     replyDiv.className = 'reply';
     const replyInput = document.createElement('input');
@@ -176,7 +207,7 @@ onSnapshot(messagesQuery, snapshot => {
       await addDoc(collection(db, "messages", docSnap.id, "replies"), {
         text: replyText,
         sticker: stickers[Math.floor(Math.random()*stickers.length)],
-        username: username || 'Anonymous',
+        username: currentUsername || 'Anonymous',
         uid: currentUser.uid,
         timestamp: serverTimestamp()
       });
@@ -207,7 +238,6 @@ onSnapshot(messagesQuery, snapshot => {
 // Send main message
 window.sendMessage = async () => {
   if (!currentUser) return alert("Please login first!");
-  if (!username) username = "Anonymous";
   const msg = messageInput.value.trim();
   if (!msg) return;
   const sticker = stickerSelect.value || stickers[Math.floor(Math.random()*stickers.length)];
@@ -215,7 +245,7 @@ window.sendMessage = async () => {
   await addDoc(collection(db, "messages"), {
     text: msg,
     sticker: sticker,
-    username: username,
+    username: currentUsername || 'Anonymous',
     uid: currentUser.uid,
     timestamp: serverTimestamp()
   });
