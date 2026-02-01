@@ -7,28 +7,37 @@
 <style>
   body { font-family: Arial, sans-serif; background: #fff0f6; display: flex; flex-direction: column; align-items: center; padding: 20px; }
   h1 { color: #ff4da6; }
+  #authTabs { display: flex; gap: 10px; margin-bottom: 10px; }
+  .tabBtn { padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; background: #ff4da6; color: white; }
+  .tabBtn.active { background: #e03e90; }
+  #authDiv { width: 100%; max-width: 400px; margin-bottom: 20px; }
+  #authDiv input, #authDiv button { width: 100%; padding: 10px; margin: 5px 0; border-radius: 5px; border: 1px solid #ccc; }
+  #logoutBtn { background: #555; color: white; margin-top: 10px; }
   #messages { width: 100%; max-width: 500px; height: 400px; border: 1px solid #ccc; padding: 10px; overflow-y: scroll; background: #fff; margin-bottom: 10px; border-radius: 8px;}
   .message, .reply { margin: 5px 0; display: flex; align-items: flex-start; gap: 5px;}
   .reply { margin-left: 20px; color: #555; font-size: 0.9em; flex-direction: column;}
   .reply-input { width: 90%; padding: 5px; margin-top: 3px; border-radius: 4px; border: 1px solid #ccc; }
+  .reply-btn { font-size: 0.8em; cursor: pointer; color: #ff4da6; background: none; border: none; margin-left: 5px; }
   input, button, select { padding: 8px; margin: 5px 0; border-radius: 5px; border: 1px solid #ccc; width: 100%; }
   button { background: #ff4da6; color: white; border: none; cursor: pointer; }
   button:hover { background: #e03e90; }
-  #authDiv { width: 100%; max-width: 400px; margin-bottom: 20px; }
-  #loginBtn, #signupBtn, #logoutBtn { width: 100%; margin: 5px 0; padding: 10px; }
-  #logoutBtn { background: #555; }
 </style>
 </head>
 <body>
 
 <h1>Anonymous Messages Online</h1>
 
+<div id="authTabs">
+  <button class="tabBtn active" id="signupTabBtn">Sign Up</button>
+  <button class="tabBtn" id="signinTabBtn">Sign In</button>
+</div>
+
 <div id="authDiv">
   <input type="text" id="usernameInput" placeholder="Username">
   <input type="text" id="emailInput" placeholder="Email or Phone (optional)">
   <input type="password" id="passwordInput" placeholder="Password">
   <button id="signupBtn">Sign Up</button>
-  <button id="loginBtn">Sign In</button>
+  <button id="loginBtn" style="display:none;">Sign In</button>
   <button id="logoutBtn" style="display:none;">Logout</button>
 </div>
 
@@ -72,6 +81,7 @@ const analytics = getAnalytics(app);
 const db = getFirestore(app);
 const auth = getAuth();
 
+// Sticker and music
 const stickers = ['❤️','🌸','🐱','✨','🌈','🥰','🍓'];
 const musicTracks = [
   'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
@@ -93,20 +103,47 @@ const messageInput = document.getElementById('messageInput');
 const stickerSelect = document.getElementById('stickerSelect');
 const sendBtn = document.getElementById('sendBtn');
 const messagesDiv = document.getElementById('messages');
+const signupTabBtn = document.getElementById('signupTabBtn');
+const signinTabBtn = document.getElementById('signinTabBtn');
 
-// Helper: create internal email if none provided
+// Helper: sanitize username for Firebase
+function sanitizeUsername(username) {
+  return username.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+}
+
+// Helper: generate internal email
 function getInternalEmail(username, email) {
   if (email) return email;
-  return username + "@anonymouschatapp.com";
+  return sanitizeUsername(username) + "@anonymouschatapp.com";
 }
+
+// Toggle tabs
+signupTabBtn.onclick = () => {
+  signupTabBtn.classList.add('active');
+  signinTabBtn.classList.remove('active');
+  signupBtn.style.display = 'block';
+  loginBtn.style.display = 'none';
+  emailInput.style.display = 'block';
+};
+signinTabBtn.onclick = () => {
+  signupTabBtn.classList.remove('active');
+  signinTabBtn.classList.add('active');
+  signupBtn.style.display = 'none';
+  loginBtn.style.display = 'block';
+  emailInput.style.display = 'none';
+};
 
 // Sign Up
 signupBtn.onclick = async () => {
   const username = usernameInput.value.trim();
   const email = emailInput.value.trim();
   const password = passwordInput.value.trim();
-
   if (!username || !password) return alert("Username and password are required!");
+
+  // Check username availability
+  const q = query(collection(db, "users"), where("username", "==", username));
+  const snapshot = await getDocs(q);
+  if (!snapshot.empty) return alert("Username already taken!");
 
   const internalEmail = getInternalEmail(username, email);
 
@@ -115,7 +152,6 @@ signupBtn.onclick = async () => {
     currentUser = userCredential.user;
     currentUsername = username;
 
-    // Save username in Firestore
     await setDoc(doc(db, "users", currentUser.uid), {
       username: username,
       email: email || "",
@@ -138,7 +174,6 @@ loginBtn.onclick = async () => {
   // Lookup username in Firestore
   const q = query(collection(db, "users"), where("username", "==", username));
   const snapshot = await getDocs(q);
-
   if (snapshot.empty) return alert("Username not found!");
 
   const userData = snapshot.docs[0].data();
@@ -172,7 +207,6 @@ function showChatUI() {
   stickerSelect.style.display = 'block';
   sendBtn.style.display = 'block';
 }
-
 function hideChatUI() {
   signupBtn.style.display = 'inline-block';
   loginBtn.style.display = 'inline-block';
@@ -217,7 +251,6 @@ onSnapshot(messagesQuery, snapshot => {
     replyDiv.appendChild(replyBtn);
     msgDiv.appendChild(replyDiv);
 
-    // Load replies
     const repliesQuery = query(collection(db, "messages", docSnap.id, "replies"), orderBy("timestamp"));
     onSnapshot(repliesQuery, rSnap => {
       replyDiv.querySelectorAll('.reply-item')?.forEach(e => e.remove());
