@@ -8,7 +8,7 @@
   body { font-family: Arial, sans-serif; background: #fff0f6; display: flex; flex-direction: column; align-items: center; padding: 20px; }
   h1 { color: #ff4da6; }
   #messages { width: 100%; max-width: 500px; height: 400px; border: 1px solid #ccc; padding: 10px; overflow-y: scroll; background: #fff; margin-bottom: 10px; border-radius: 8px;}
-  .message, .reply { margin: 5px 0; display: flex; align-items: center; gap: 5px;}
+  .message, .reply { margin: 5px 0; display: flex; align-items: flex-start; gap: 5px;}
   .reply { margin-left: 20px; color: #555; font-size: 0.9em; flex-direction: column;}
   .reply-input { width: 90%; padding: 5px; margin-top: 3px; border-radius: 4px; border: 1px solid #ccc; }
   .reply-btn { font-size: 0.8em; cursor: pointer; color: #ff4da6; background: none; border: none; margin-left: 5px; }
@@ -53,7 +53,7 @@ import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTim
 import { getAuth, FacebookAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-auth.js";
 import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-analytics.js";
 
-// Firebase config
+// Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyCtVgNIqBQi_0T0yQguzYAPpXo3tTqpKGE",
   authDomain: "anonymouschatapp-61434.firebaseapp.com",
@@ -64,6 +64,7 @@ const firebaseConfig = {
   measurementId: "G-8JPJ0QPCQQ"
 };
 
+// Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const analytics = getAnalytics(app);
 const db = getFirestore(app);
@@ -84,6 +85,9 @@ const logoutBtn = document.getElementById('logoutBtn');
 const usernameDiv = document.getElementById('usernameDiv');
 const usernameInput = document.getElementById('usernameInput');
 const messagesDiv = document.getElementById('messages');
+const messageInput = document.getElementById('messageInput');
+const stickerSelect = document.getElementById('stickerSelect');
+const sendBtn = document.getElementById('sendBtn');
 
 loginBtn.onclick = async () => {
   const provider = new FacebookAuthProvider();
@@ -93,9 +97,9 @@ loginBtn.onclick = async () => {
     loginBtn.style.display = 'none';
     logoutBtn.style.display = 'inline-block';
     usernameDiv.style.display = 'block';
-    document.getElementById('messageInput').style.display = 'block';
-    document.getElementById('stickerSelect').style.display = 'block';
-    document.getElementById('sendBtn').style.display = 'block';
+    messageInput.style.display = 'block';
+    stickerSelect.style.display = 'block';
+    sendBtn.style.display = 'block';
   } catch (err) {
     alert("Login failed: " + err.message);
   }
@@ -108,9 +112,9 @@ logoutBtn.onclick = async () => {
   loginBtn.style.display = 'inline-block';
   logoutBtn.style.display = 'none';
   usernameDiv.style.display = 'none';
-  document.getElementById('messageInput').style.display = 'none';
-  document.getElementById('stickerSelect').style.display = 'none';
-  document.getElementById('sendBtn').style.display = 'none';
+  messageInput.style.display = 'none';
+  stickerSelect.style.display = 'none';
+  sendBtn.style.display = 'none';
   messagesDiv.innerHTML = '';
 };
 
@@ -118,7 +122,7 @@ usernameInput.onchange = () => {
   username = usernameInput.value.trim() || "Anonymous";
 };
 
-// Load messages and replies
+// Load messages
 const messagesQuery = query(collection(db, "messages"), orderBy("timestamp"));
 onSnapshot(messagesQuery, snapshot => {
   messagesDiv.innerHTML = '';
@@ -126,53 +130,48 @@ onSnapshot(messagesQuery, snapshot => {
     const data = docSnap.data();
     const msgDiv = document.createElement('div');
     msgDiv.className = 'message';
+    msgDiv.textContent = `${data.sticker} ${data.username || 'Anonymous'}: ${data.text}`;
 
-    const msgContent = document.createElement('span');
-    msgContent.textContent = `${data.sticker} ${data.username || 'Anonymous'}: ${data.text}`;
-    msgDiv.appendChild(msgContent);
-
-    // Reply input box
-    const replyContainer = document.createElement('div');
-    replyContainer.className = 'reply';
-
+    // Reply input
+    const replyDiv = document.createElement('div');
+    replyDiv.className = 'reply';
     const replyInput = document.createElement('input');
     replyInput.className = 'reply-input';
     replyInput.placeholder = 'Reply anonymously...';
-
     const replyBtn = document.createElement('button');
     replyBtn.textContent = 'Send';
     replyBtn.onclick = async () => {
       if (!currentUser) return alert("Login first!");
       const replyText = replyInput.value.trim();
       if (!replyText) return;
-      const sticker = stickers[Math.floor(Math.random() * stickers.length)];
       await addDoc(collection(db, "messages", docSnap.id, "replies"), {
         text: replyText,
-        sticker: sticker,
+        sticker: stickers[Math.floor(Math.random()*stickers.length)],
         username: username || 'Anonymous',
         uid: currentUser.uid,
         timestamp: serverTimestamp()
       });
       replyInput.value = '';
     };
-
-    replyContainer.appendChild(replyInput);
-    replyContainer.appendChild(replyBtn);
-    msgDiv.appendChild(replyContainer);
-
-    messagesDiv.appendChild(msgDiv);
+    replyDiv.appendChild(replyInput);
+    replyDiv.appendChild(replyBtn);
+    msgDiv.appendChild(replyDiv);
 
     // Load replies
     const repliesQuery = query(collection(db, "messages", docSnap.id, "replies"), orderBy("timestamp"));
-    onSnapshot(repliesQuery, rSnapshot => {
-      rSnapshot.forEach(rDoc => {
+    onSnapshot(repliesQuery, rSnap => {
+      // Remove old replies first
+      replyDiv.querySelectorAll('.reply-item')?.forEach(e => e.remove());
+      rSnap.forEach(rDoc => {
         const rData = rDoc.data();
         const rDiv = document.createElement('div');
-        rDiv.className = 'reply';
+        rDiv.className = 'reply reply-item';
         rDiv.textContent = `${rData.sticker} ${rData.username || 'Anonymous'}: ${rData.text}`;
-        msgDiv.appendChild(rDiv);
+        replyDiv.appendChild(rDiv);
       });
     });
+
+    messagesDiv.appendChild(msgDiv);
   });
   messagesDiv.scrollTop = messagesDiv.scrollHeight;
 });
@@ -181,12 +180,9 @@ onSnapshot(messagesQuery, snapshot => {
 window.sendMessage = async () => {
   if (!currentUser) return alert("Please login first!");
   if (!username) username = "Anonymous";
-  const msgInput = document.getElementById('messageInput');
-  const stickerSelect = document.getElementById('stickerSelect');
-  const msg = msgInput.value.trim();
+  const msg = messageInput.value.trim();
   if (!msg) return;
-
-  const sticker = stickerSelect.value || stickers[Math.floor(Math.random() * stickers.length)];
+  const sticker = stickerSelect.value || stickers[Math.floor(Math.random()*stickers.length)];
 
   await addDoc(collection(db, "messages"), {
     text: msg,
@@ -196,12 +192,12 @@ window.sendMessage = async () => {
     timestamp: serverTimestamp()
   });
 
-  msgInput.value = '';
+  messageInput.value = '';
   stickerSelect.value = '';
 
   const music = document.getElementById('music');
   if (music.paused) {
-    const track = musicTracks[Math.floor(Math.random() * musicTracks.length)];
+    const track = musicTracks[Math.floor(Math.random()*musicTracks.length)];
     music.src = track;
     music.play();
   }
