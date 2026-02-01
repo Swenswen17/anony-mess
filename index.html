@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anonymous Messages</title>
+<style>
+  body { font-family: Arial, sans-serif; background: #fff0f6; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+  h1 { color: #ff4da6; }
+  #messages { width: 100%; max-width: 400px; height: 300px; border: 1px solid #ccc; padding: 10px; overflow-y: scroll; background: #fff; margin-bottom: 10px; border-radius: 8px;}
+  #messages p { margin: 5px 0; display: flex; align-items: center; gap: 5px;}
+  input, button, select { padding: 8px; margin: 5px 0; border-radius: 5px; border: 1px solid #ccc; width: 100%; }
+  button { background: #ff4da6; color: white; border: none; cursor: pointer; }
+  button:hover { background: #e03e90; }
+</style>
+</head>
+<body>
+
+<h1>Anonymous Messages</h1>
+<div id="messages"></div>
+<input type="text" id="messageInput" placeholder="Type your message...">
+
+<!-- Sticker picker -->
+<select id="stickerSelect">
+  <option value="">Pick a sticker</option>
+  <option value="❤️">❤️</option>
+  <option value="🌸">🌸</option>
+  <option value="🐱">🐱</option>
+  <option value="✨">✨</option>
+  <option value="🌈">🌈</option>
+  <option value="🥰">🥰</option>
+  <option value="🍓">🍓</option>
+</select>
+
+<button onclick="sendMessage()">Send</button>
+
+<!-- Multiple music tracks -->
+<audio id="music" loop></audio>
+
+<script>
+  let messages = [];
+  const stickers = ['❤️','🌸','🐱','✨','🌈','🥰','🍓'];
+  const musicTracks = [
+    'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
+    'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
+    'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3'
+  ];
+
+  function sendMessage() {
+    const input = document.getElementById('messageInput');
+    const stickerSelect = document.getElementById('stickerSelect');
+    const msg = input.value.trim();
+    if(msg === '') return;
+
+    // Use selected sticker or random
+    let sticker = stickerSelect.value || stickers[Math.floor(Math.random() * stickers.length)];
+
+    messages.push({text: msg, sticker: sticker});
+    input.value = '';
+    stickerSelect.value = '';
+    displayMessages();
+
+    // Play random music
+    const music = document.getElementById('music');
+    if(music.paused) {
+      const track = musicTracks[Math.floor(Math.random() * musicTracks.length)];
+      music.src = track;
+      music.play();
+    }
+  }
+
+  function displayMessages() {
+    const messagesDiv = document.getElementById('messages');
+    messagesDiv.innerHTML = '';
+    messages.forEach((msgObj) => {
+      const p = document.createElement('p');
+      p.innerHTML = `${msgObj.sticker} Anonymous: ${msgObj.text}`;
+      messagesDiv.appendChild(p);
+    });
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+  }
+</script>
+
+</body>
+</html>
