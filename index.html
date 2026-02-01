@@ -105,17 +105,13 @@ const messagesDiv = document.getElementById('messages');
 const signupTabBtn = document.getElementById('signupTabBtn');
 const signinTabBtn = document.getElementById('signinTabBtn');
 
-// Helper: sanitize username for Firebase
+// Sanitize username: only letters/numbers lowercase
 function sanitizeUsername(username) {
   return username.replace(/[^a-z0-9]/gi, '').toLowerCase();
 }
-
-// Helper: validate username
 function isValidUsername(username) {
   return sanitizeUsername(username).length >= 3;
 }
-
-// Helper: generate internal email
 function getInternalEmail(username, email) {
   if (email) return email;
   return sanitizeUsername(username) + "@anonymouschatapp.com";
@@ -145,8 +141,10 @@ signupBtn.onclick = async () => {
   if (!username || !password) return alert("Username and password are required!");
   if (!isValidUsername(username)) return alert("Username must be at least 3 letters/numbers (no spaces/special chars)");
 
-  // Check username availability
-  const q = query(collection(db, "users"), where("username", "==", username));
+  const sanitizedUsername = sanitizeUsername(username);
+
+  // Check availability
+  const q = query(collection(db, "users"), where("username", "==", sanitizedUsername));
   const snapshot = await getDocs(q);
   if (!snapshot.empty) return alert("Username already taken!");
 
@@ -155,15 +153,15 @@ signupBtn.onclick = async () => {
   try {
     const userCredential = await createUserWithEmailAndPassword(auth, internalEmail, password);
     currentUser = userCredential.user;
-    currentUsername = username;
+    currentUsername = sanitizedUsername;
 
     await setDoc(doc(db, "users", currentUser.uid), {
-      username: username,
+      username: sanitizedUsername,
       email: email || "",
       uid: currentUser.uid
     });
 
-    alert("Account created! Logged in as " + username);
+    alert("Account created! Logged in as " + sanitizedUsername);
     showChatUI();
   } catch (err) {
     alert("Sign up failed: " + err.message);
@@ -176,8 +174,9 @@ loginBtn.onclick = async () => {
   const password = passwordInput.value.trim();
   if (!username || !password) return alert("Username and password are required!");
 
-  // Lookup username in Firestore
-  const q = query(collection(db, "users"), where("username", "==", username));
+  const sanitizedUsername = sanitizeUsername(username);
+
+  const q = query(collection(db, "users"), where("username", "==", sanitizedUsername));
   const snapshot = await getDocs(q);
   if (snapshot.empty) return alert("Username not found!");
 
@@ -187,8 +186,8 @@ loginBtn.onclick = async () => {
   try {
     const userCredential = await signInWithEmailAndPassword(auth, internalEmail, password);
     currentUser = userCredential.user;
-    currentUsername = username;
-    alert("Logged in as " + username);
+    currentUsername = sanitizedUsername;
+    alert("Logged in as " + sanitizedUsername);
     showChatUI();
   } catch (err) {
     alert("Sign in failed: " + err.message);
