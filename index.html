@@ -3,12 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Anonymous Messages</title>
+<title>Anonymous Messages Online</title>
 <style>
   body { font-family: Arial, sans-serif; background: #fff0f6; display: flex; flex-direction: column; align-items: center; padding: 20px; }
   h1 { color: #ff4da6; }
-  #messages { width: 100%; max-width: 400px; height: 300px; border: 1px solid #ccc; padding: 10px; overflow-y: scroll; background: #fff; margin-bottom: 10px; border-radius: 8px;}
+  #messages { width: 100%; max-width: 500px; height: 400px; border: 1px solid #ccc; padding: 10px; overflow-y: scroll; background: #fff; margin-bottom: 10px; border-radius: 8px;}
   #messages p { margin: 5px 0; display: flex; align-items: center; gap: 5px;}
+  .reply { margin-left: 20px; color: #555; font-size: 0.9em; }
+  .reply-btn { margin-left: 10px; font-size: 0.8em; cursor: pointer; color: #ff4da6; background: none; border: none; }
   input, button, select { padding: 8px; margin: 5px 0; border-radius: 5px; border: 1px solid #ccc; width: 100%; }
   button { background: #ff4da6; color: white; border: none; cursor: pointer; }
   button:hover { background: #e03e90; }
@@ -16,11 +18,10 @@
 </head>
 <body>
 
-<h1>Anonymous Messages</h1>
+<h1>Anonymous Messages Online</h1>
 <div id="messages"></div>
 <input type="text" id="messageInput" placeholder="Type your message...">
 
-<!-- Sticker picker -->
 <select id="stickerSelect">
   <option value="">Pick a sticker</option>
   <option value="❤️">❤️</option>
@@ -34,11 +35,26 @@
 
 <button onclick="sendMessage()">Send</button>
 
-<!-- Multiple music tracks -->
 <audio id="music" loop></audio>
 
+<!-- Firebase SDK (compat) -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
 <script>
-  let messages = [];
+  const firebaseConfig = {
+    apiKey: "AIzaSyCtVgNIqBQi_0T0yQguzYAPpXo3tTqpKGE",
+    authDomain: "anonymouschatapp-61434.firebaseapp.com",
+    projectId: "anonymouschatapp-61434",
+    storageBucket: "anonymouschatapp-61434.appspot.com",
+    messagingSenderId: "513178037647",
+    appId: "1:513178037647:web:36aceac41bf3c784742ffa",
+    measurementId: "G-8JPJ0QPCQQ"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+
   const stickers = ['❤️','🌸','🐱','✨','🌈','🥰','🍓'];
   const musicTracks = [
     'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
@@ -46,21 +62,55 @@
     'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3'
   ];
 
+  // Load messages with replies
+  db.collection("messages").orderBy("timestamp").onSnapshot(snapshot => {
+    const messagesDiv = document.getElementById('messages');
+    messagesDiv.innerHTML = '';
+    snapshot.forEach(async doc => {
+      const data = doc.data();
+      const msgP = document.createElement('p');
+      msgP.innerHTML = `${data.sticker} Anonymous: ${data.text}`;
+      
+      // Reply button
+      const replyBtn = document.createElement('button');
+      replyBtn.textContent = 'Reply';
+      replyBtn.className = 'reply-btn';
+      replyBtn.onclick = () => replyToMessage(doc.id);
+      msgP.appendChild(replyBtn);
+
+      messagesDiv.appendChild(msgP);
+
+      // Load replies
+      const replies = await db.collection("messages").doc(doc.id).collection("replies").orderBy("timestamp").get();
+      replies.forEach(r => {
+        const rData = r.data();
+        const rP = document.createElement('p');
+        rP.className = 'reply';
+        rP.textContent = `${rData.sticker} Anonymous: ${rData.text}`;
+        messagesDiv.appendChild(rP);
+      });
+    });
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+  });
+
   function sendMessage() {
     const input = document.getElementById('messageInput');
     const stickerSelect = document.getElementById('stickerSelect');
     const msg = input.value.trim();
     if(msg === '') return;
 
-    // Use selected sticker or random
-    let sticker = stickerSelect.value || stickers[Math.floor(Math.random() * stickers.length)];
+    const sticker = stickerSelect.value || stickers[Math.floor(Math.random() * stickers.length)];
 
-    messages.push({text: msg, sticker: sticker});
+    db.collection("messages").add({
+      text: msg,
+      sticker: sticker,
+      timestamp: firebase.firestore.FieldValue.serverTimestamp()
+    });
+
     input.value = '';
     stickerSelect.value = '';
-    displayMessages();
 
-    // Play random music
+    // Play music
     const music = document.getElementById('music');
     if(music.paused) {
       const track = musicTracks[Math.floor(Math.random() * musicTracks.length)];
@@ -69,15 +119,17 @@
     }
   }
 
-  function displayMessages() {
-    const messagesDiv = document.getElementById('messages');
-    messagesDiv.innerHTML = '';
-    messages.forEach((msgObj) => {
-      const p = document.createElement('p');
-      p.innerHTML = `${msgObj.sticker} Anonymous: ${msgObj.text}`;
-      messagesDiv.appendChild(p);
+  function replyToMessage(msgId) {
+    const replyText = prompt("Type your anonymous reply:");
+    if(!replyText || replyText.trim() === '') return;
+
+    const sticker = stickers[Math.floor(Math.random() * stickers.length)];
+
+    db.collection("messages").doc(msgId).collection("replies").add({
+      text: replyText.trim(),
+      sticker: sticker,
+      timestamp: firebase.firestore.FieldValue.serverTimestamp()
     });
-    messagesDiv.scrollTop = messagesDiv.scrollHeight;
   }
 </script>
 
